@@ -1,0 +1,326 @@
+// Zed keymap — 对齐 ~/.config/nvim 的**当前**配置
+//
+// 基准文件（2026-10-12 核对）:
+//   lua/keymaps.lua(84行) · lua/lsp/common.lua · lua/lsp/rust.lua · lua/lsp/swift.lua
+//   lua/config/gitsigns.lua · lua/config/ufo.lua · lua/config/telescope.lua
+//   lua/config/nvim-cmp.lua · lua/config/nvimtree.lua
+// 项目面板的基准不是 keymaps.lua 里的 NvimTree tmap（那部分已在 14:55 的
+// git 还原中消失），而是 **nvim-tree 插件的默认键位表** —— 因为 nvimtree.lua
+// 没设 on_attach。见文件末尾项目面板一节的说明。
+//
+// 分组语义: space = 命令层 · , = buffer/面板层 · Ctrl+hjkl = 窗口跳转
+//           单键组 K/gn/gp/gd/gt/gi/gr = LSP · ]c/[c = hunk · gc = 注释
+//
+// 关键实现说明:
+// 1. space 组放在 "VimControl && !menu" 而不是 Workspace。Zed 原生的 space f /
+//    space / 是注册在 "!Editor && !Terminal"（只在面板聚焦时生效）的——编辑器里
+//    打字 space 会变成空格。vim 用户的 leader 必须在编辑器聚焦时接管。
+// 2. 裸 space 置 null: Zed 默认把它绑给 vim::WrappingRight（软换行跨行右移），
+//    你 nvim 没开 whichwrap，关掉以对齐。
+// 3. 面板/侧边栏内用 ctrl-w hjkl: 面板自己的上下文是 Dock 的子节点，会抢键，
+//    这是 Zed 上游文档推荐的做法（vim 跨窗跳转的肌肉记忆也一致）。
+// 4. 注释: nvim 的 Comment.nvim(plugins/editor.lua:19-24) 定义 gc(行)/gb(块) ——
+//    Zed 的 vim 模式原生就有: g c -> vim::PushToggleComments、g b ->
+//    vim::PushToggleBlockComments（vim.json 已确认），无需配置。
+// 5. 折叠: nvim 的 ufo(ufo.lua:39-41) 有 zR/zM/zp。Zed 原生折叠键位比 ufo 更全，
+//    无需配置: z a/z A 切换(递归) · z c/z C 折叠(递归) · z o/z O 展开(递归) ·
+//    z M 全部折叠 · z R 全部展开 · z f 折叠选区。
+//    唯一缺口: ufo 的 zp（peek 预览折叠内容）在 Zed 没有对应 action。
+
+[
+  // ============================================================
+  // 命令层 (space) —— 与 nvim <leader> 分组对齐
+  // ============================================================
+  {
+    "context": "VimControl && !menu",
+    "bindings": {
+      // 关掉 Zed 默认的 space -> vim::WrappingRight，让 space 纯粹当 leader
+      "space": null,
+
+      // --- 文件 (nvim <leader>f*) ---
+      // 当前 nvim 只有 <leader>fs(保存) / <leader>fS(全部保存) / <leader>e(文件树定位)
+      // 旧版曾有的 fR/fn/fr/fm/fc/fy 已在 nvim 侧移除，这里同步删除
+      "space f": "file_finder::Toggle", // nvim ,o 与 telescope find_files
+      "space e": "pane::RevealInProjectPanel", // nvim <leader>e = NvimTreeFindFile（在树中定位）
+      // space x = 格式化 + 保存（等价你 nvim 里 conform 的保存即格式化）
+      // Zed 的 format_on_save 默认是 "off"，所以这里强制走 FormatAndSave 意图
+      "space x": "workspace::FormatAndSave", // nvim <leader>fs
+      "space X": "workspace::SaveAll", // nvim <leader>fS
+
+      // --- 搜索 (nvim <leader>f* / <leader>d*) ---
+      // 当前 nvim: <leader>fw live_grep / fb buffers / fh help_tags / ds diagnostics
+      //            ,o find_files / <leader>lo Navbuddy / <leader>S spectre
+      "space s": "pane::DeploySearch", // nvim <leader>fw = live_grep
+      "space r": ["pane::DeploySearch", { "replace_enabled": true }], // nvim <leader>S = spectre
+      "space d": "diagnostics::Deploy", // nvim <leader>ds = telescope diagnostics
+      "space b": "tab_switcher::Toggle", // nvim <leader>fb = telescope buffers
+      "space o": "outline::Toggle", // nvim <leader>lo = Navbuddy（大纲）
+
+      // --- Git (nvim <leader>g*) ---
+      // 注意 nvim 的 <leader>g* 是 gitsigns 的 **buffer-local** 映射，作用对象是
+      // "当前文件/当前 hunk"；而 Zed 的 git:: 命名空间里有一部分 action 只在
+      // GitPanel 注册（如 StageFile），在编辑器里按下是静默 no-op。以下只用
+      // 编辑器里确实有处理者的 action，逐条注明依据。
+      "space g s": "git::StageAndNext", // nvim <leader>gs = stage_hunk；editor/src/git.rs 有处理者
+      // nvim <leader>gu = undo_stage_hunk（**只取消暂存**）。
+      // UnstageAndNext 是"取消暂存并移到下一个"（editor/src/git.rs:1624），方向正确；
+      // 之前我换成 ToggleStaged 是错的 —— ToggleStaged 是**切换**，未暂存的 hunk
+      // 会被反向暂存（editor/src/git.rs:1652-1668 按 has_secondary_hunk 决定方向）。
+      "space g u": "git::UnstageAndNext",
+      // nvim <leader>gt = toggle_current_line_blame
+      "space g t": "editor::ToggleGitBlameInline",
+      "space g r": "git::Restore", // nvim <leader>gr = reset_hunk
+      "space g R": "git::RestoreFile", // nvim <leader>gR = reset_buffer（整文件）
+      // nvim <leader>gS = stage_buffer（整文件）。
+      // 不能用 git::StageFile —— 它只在 GitPanel 注册（git_ui/src/git_panel.rs:3491
+      // 是唯一处理者），编辑器里没有处理者。编辑器侧等价能力是 ApplyAllDiffHunks
+      // （editor/src/element.rs:775 → editor/src/git.rs:1831）。
+      "space g S": "editor::ApplyAllDiffHunks",
+      // nvim <leader>gb = blame_line { full = true }（当前行提交信息弹窗）。
+      // git::Blame 是**切换整文件 blame gutter**（editor/src/git.rs:427-438），语义不同；
+      // 当前行信息用 editor::BlameHover 才对。
+      "space g b": "editor::BlameHover",
+      "space g B": "git::Blame", // 整文件 blame gutter（Zed 侧能力，nvim 无对应键）
+      // nvim <leader>gd = diffthis（当前文件 vs index）。
+      // Zed 没有"当前文件 diff 视图"的 action；git::DiffHead 是**整个工作区** vs HEAD
+      // 的 ProjectDiff（git_ui/src/project_diff.rs:45-50，workspace 级注册），是近似而非等价。
+      "space g d": "git::DiffHead",
+      // 真名是 ToggleSelectedDiffHunks；ToggleHunkDiff 只是弃用别名
+      // （editor/src/actions.rs:921-923），用真名以免被 schema/UI 标记弃用。
+      "space g p": "editor::ToggleSelectedDiffHunks",
+      // nvim <leader>gx（toggle_deleted）与 <leader>gD（与上一提交 diff）在 Zed 无对应能力
+
+      // --- 面板 / 其它 ---
+      "space t": "terminal_panel::Toggle", // nvim <leader>tt 是终端（旧版）；Zed 侧保留
+      "space c": "command_palette::Toggle",
+      "space l c": "editor::ToggleCodeActions", // nvim <leader>lc = actions-preview
+      "space l r": "editor::Rename", // nvim <leader>lr = vim.lsp.buf.rename()
+    },
+  },
+
+  // ============================================================
+  // 面板层 (,) —— 严格对应当前 nvim 的 "," 命名空间
+  // nvim 当前只有: ,o 查找文件 · ,tt 测试输出 · ,tr 跑最近测试 · ,r 重载
+  //                ,h ,l ,j ,k 关 buffer（四向）
+  //
+  // ⚠️ 键位串必须写成 ", o"（逗号 + 空格 + 键）。
+  // Zed 按空格切分多键序列（gpui/src/keymap/binding.rs:56 split_whitespace），
+  // 写成 ",o" 会被当成**一个**键名 ",o"，平台永远发不出这个键 → 绑定静默失效。
+  // 逗号本身也必须单列一条：shipped vim.json:66 把裸 "," 绑给了 RepeatFindReversed，
+  // 不清掉它，按逗号会等 1 秒前缀超时。
+  // ============================================================
+  {
+    "context": "VimControl && !menu",
+    "bindings": {
+      ",": null, // 解绑 vim::RepeatFindReversed，让 , 纯粹当前缀
+      ", o": "file_finder::Toggle", // nvim ,o
+      ", tt": "terminal_panel::Toggle", // nvim ,tt（测试输出面板 → Zed 终端面板）
+      ", tr": "editor::SpawnNearestTask", // nvim ,tr（Zed 无测试面板，退化为最近 task）
+      ", r": "editor::ReloadFile", // nvim ,r = :e
+      ", h": "pane::CloseItemsToTheLeft", // nvim ,h
+      ", l": "pane::CloseItemsToTheRight", // nvim ,l
+      ", j": "pane::CloseOtherItems", // nvim ,j
+      ", k": "pane::CloseActiveItem", // nvim ,k
+    },
+  },
+
+  // ============================================================
+  // LSP 单键组 (nvim: gn/gp/gd/gt/gi/gr/K)
+  //
+  // 注意 gn/gp 是"上一个/下一个诊断"，不是重命名——依据是 nvim 的
+  // lua/lsp/common.lua: gn -> vim.diagnostic.goto_next, gp -> goto_prev。
+  // 重命名在 nvim 里是 <leader>lr，对应下面的 space l r。
+  //
+  // 副作用: Zed 原生的 gn(vim::SelectNextMatch, cgn 逐个改匹配的入口) 被
+  // 这个诊断绑定覆盖了。想用 cgn 那套，把 "g n" 这行删掉即可恢复原生。
+  // ============================================================
+  {
+    "context": "VimControl && !menu",
+    "bindings": {
+      "g d": "editor::GoToDefinition",
+      "g t": "editor::GoToTypeDefinition",
+      "g i": "editor::GoToImplementation",
+      "g r": "editor::FindAllReferences",
+      "g n": "editor::GoToDiagnostic", // nvim: gn = vim.diagnostic.goto_next()
+      "g p": "editor::GoToPreviousDiagnostic", // nvim: gp = vim.diagnostic.goto_prev()
+      "K": "editor::Hover",
+      // gitsigns 的 hunk 跳转（gitsigns.lua: ]c next_hunk / [c prev_hunk）
+      // Zed 原生就有这两个键，这里显式写出以便集中维护
+      "] c": "editor::GoToHunk",
+      "[ c": "editor::GoToPreviousHunk",
+      "ctrl-o": "pane::GoBack",
+      "ctrl-i": "pane::GoForward",
+    },
+  },
+
+  // ============================================================
+  // 普通模式: 禁用宏录制 + buffer 循环（nvim 语义）
+  // ============================================================
+  {
+    "context": "vim_mode == normal",
+    "bindings": {
+      "q": null, // nvim: map("n","q","<Nop>")
+      "tab": "pane::ActivateNextItem", // nvim <Tab>
+      "shift-tab": "pane::ActivatePreviousItem", // nvim <S-Tab>
+      // 子词运动: camelCase / snake_case 逐段跳（Zed 原生能力，nvim 侧靠 w/b/e）
+      "w": "vim::NextSubwordStart",
+      "b": "vim::PreviousSubwordStart",
+      "e": "vim::NextSubwordEnd",
+      "g e": "vim::PreviousSubwordEnd",
+      // sneak 两字符跳转（nvim 侧无此插件，Zed 原生；s 让位给跳转）
+      "s": "vim::PushSneak",
+      "shift-s": "vim::PushSneakBackward",
+    },
+  },
+
+  // ============================================================
+  // 视觉模式: v 退出 · 缩进保持选区 · 包裹 · 复制 · 暂存 hunk
+  // ============================================================
+  {
+    "context": "vim_mode == visual",
+    "bindings": {
+      // nvim: map("v","v","<Esc>") —— 视觉模式按 v 退回普通模式。
+      // 必须显式绑 vim::SwitchToNormalMode：Zed 的 v 在视觉模式只有
+      // vim::ToggleVisual 一个处理者（visual.rs:71），而 toggle_mode 本身就会
+      // "已在 visual → 切 Normal"（visual.rs:583-589）。之前我写 "v": null
+      // 把它解绑了，结果按 v 完全没反应 —— 那是错的。
+      "v": "vim::SwitchToNormalMode",
+      // Zed 的 vim::Indent 会退出视觉并折叠光标（indent.rs: switch_mode(Normal)），
+      // 但 <> 记号有写，所以 gv 原生可用 -> 补出 nvim 的 ">gv" 效果
+      ">": ["workspace::SendKeystrokes", "> g v"],
+      "<": ["workspace::SendKeystrokes", "< g v"],
+      "S": "vim::PushAddSurrounds", // 注意：这会替换 vim 原生视觉 S = SubstituteLine
+      ", y": "vim::Yank", // nvim ,y（系统剪贴板）；键位串必须带空格
+      "space g s": "git::StageAndNext",
+      "space g r": "git::Restore",
+    },
+  },
+
+  // ============================================================
+  // 插入模式: nvim 的 C-f/b/p/n/e/a 光标移动
+  //
+  // ⚠️ ctrl-p / ctrl-n 的 context 必须排除补全菜单，否则会吃掉菜单导航：
+  // default-macos.json:63 把 ctrl-p/ctrl-n 绑给 editor::ContextMenuPrevious/Next，
+  // context 是 "Editor && (showing_code_actions || showing_completions)"。
+  // 用户绑定在同深度下**注册序更靠后 = 优先级更高**（gpui/src/keymap.rs:154-190，
+  // User=0 < Vim=1 < Base=2 < Default=3），所以不加 !showing_completions 就会
+  // 把补全列表的上下选择彻底顶掉。
+  // 加了之后：菜单弹出 → ContextMenuNext/Previous 接管；菜单关掉 → 光标上下移。
+  // 这与 nvim-cmp 的 fallback 行为一致（cmp 不可见时回退到光标移动）。
+  //
+  // ⚠️ ctrl-e 覆盖了 vim 原生的 vim::InsertFromBelow（vim.json 插入段）。
+  // ============================================================
+  {
+    "context": "vim_mode == insert",
+    "bindings": {
+      // nvim 是**单字符**左右移（<Right>/<Left>）。Zed 的 vim 动作里没有纯字符
+      // insert 模式包装，这里用词级移动近似；想改成字符级可用
+      // editor::MoveRight / editor::MoveLeft。
+      "ctrl-f": "vim::NextWordStart",
+      "ctrl-b": "vim::PreviousWordStart",
+      "ctrl-e": "editor::MoveToEndOfLine", // nvim C-e -> 行尾
+      "ctrl-a": "editor::MoveToBeginningOfLine", // nvim C-a -> 行首
+      "ctrl-.": "editor::ShowCompletions", // nvim-cmp: <C-.> = cmp.mapping.complete()
+    },
+  },
+  {
+    // 单独一段：排除补全菜单，避免顶掉 ContextMenuNext/Previous
+    "context": "vim_mode == insert && !showing_completions && !showing_code_actions",
+    "bindings": {
+      // nvim C-p/C-n = 光标上/下一行。
+      // 不能用 vim::LineUp/LineDown —— 那两个是**滚动**（scroll.rs:11-17
+      // 文档即 "Scrolls up/down by one line"），光标只在滚出可视区时被动跟随。
+      // vim::Up/vim::Down 才是 "Moves cursor up/down by the specified number of lines"。
+      "ctrl-p": "vim::Up",
+      "ctrl-n": "vim::Down",
+    },
+  },
+
+  // ============================================================
+  // 窗口跳转: 编辑器内用裸 Ctrl+hjkl（对齐 nvim 的 <C-hjkl>）
+  // ============================================================
+  {
+    "context": "Editor && VimControl && !menu",
+    "bindings": {
+      "ctrl-h": "workspace::ActivatePaneLeft",
+      "ctrl-j": "workspace::ActivatePaneDown",
+      "ctrl-k": "workspace::ActivatePaneUp",
+      "ctrl-l": "workspace::ActivatePaneRight",
+    },
+  },
+
+  // 面板 / 侧边栏聚焦时
+  // ⚠️ 必须排除终端：终端也在 Dock 内，若在 Dock 段绑 ctrl-w，会让 shell 的
+  //    ctrl-w（删词）变成"等待第二键"。shipped vim.json 的对应段同样用
+  //    "!Editor && !Terminal" 排除终端。
+  {
+    "context": "!Editor && !Terminal",
+    "bindings": {
+      "ctrl-w h": "workspace::ActivatePaneLeft",
+      "ctrl-w l": "workspace::ActivatePaneRight",
+      "ctrl-w k": "workspace::ActivatePaneUp",
+      "ctrl-w j": "workspace::ActivatePaneDown",
+      // 面板聚焦时 space 层依然可用（只保留 nvim 当前存在的键）
+      "space f": "file_finder::Toggle",
+      "space s": "pane::DeploySearch",
+      "space b": "tab_switcher::Toggle",
+      "space o": "outline::Toggle",
+      "space d": "diagnostics::Deploy",
+      "space t": "terminal_panel::Toggle",
+      "space c": "command_palette::Toggle",
+    },
+  },
+
+  // ============================================================
+  // 项目面板 —— 照搬 nvim-tree 的**插件默认键位表**
+  //
+  // 依据: 你的 nvimtree.lua 没设 on_attach（grep 命中 0 次），所以生效的是
+  // nvim-tree/keymap.lua:53-116 的 on_attach_default。
+  //
+  // ⚠️ 本段有若干"名义上照搬、实际语义不同"的项，逐条写在注释里，
+  //    因为它们与 nvim-tree 的对应关系经不起推敲（已由独立核查指出）。
+  // ============================================================
+  {
+    "context": "ProjectPanel && not_editing",
+    "bindings": {
+      // --- 打开 ---
+      "o": "project_panel::OpenPermanent", // nvim-tree o/<CR> = open.edit
+      "tab": "project_panel::Open", // nvim-tree <Tab> = open.preview
+      "shift-v": "project_panel::OpenSplitVertical", // nvim-tree <C-v>；Zed 的 Ctrl+V 不可用故挪 Shift
+      "shift-x": "project_panel::OpenSplitHorizontal", // nvim-tree <C-x>；同上
+
+      // --- 文件操作 ---
+      "a": "project_panel::NewFile", // nvim-tree a = fs.create
+      "r": "project_panel::Rename", // nvim-tree r = fs.rename
+      // ⚠️ nvim-tree 的 d = fs.remove（删除）。Zed 原生 d = NewDirectory，
+      //    这里按"以 nvim 为准"改成删除。**注意 Zed 面板删除没有撤销**。
+      "d": "project_panel::Delete", // nvim-tree d = fs.remove
+      "shift-d": "project_panel::Delete", // 覆盖 Zed 原生的同一个 action，保持集中维护
+      "ctrl-r": "project_panel::Rename", // nvim-tree <C-r> = rename_sub（省略扩展名）；Zed 无此能力，退化为 Rename
+      "c": "project_panel::Copy", // nvim-tree c = fs.copy.node
+      "x": "project_panel::Cut", // nvim-tree x = fs.cut
+      "p": "project_panel::Paste", // nvim-tree p = fs.paste
+      // nvim-tree 的 y = copy.filename、Y = copy.relative_path、gy = copy.absolute_path。
+      // Zed 面板没有"复制文件名"能力，所以：
+      //   y   → 相对路径（对应 nvim-tree 的 Y，语义错位一位）
+      //   y y → 绝对路径（对应 gy）
+      // 只用两条，避免像之前那样在 y 之外再挂 y y/y c 导致裸 y 每次等前缀超时。
+      "y": "workspace::CopyRelativePath", // ≈ nvim-tree Y
+      "y y": "workspace::CopyPath", // ≈ nvim-tree gy
+
+      // --- 折叠（nvim-tree: h/l 单层, W/E 全部）---
+      "h": "project_panel::CollapseSelectedEntry", // nvim-tree h（= Zed 原生默认）
+      "l": "project_panel::ExpandSelectedEntry", // nvim-tree l
+      "shift-w": "project_panel::CollapseAllEntries", // nvim-tree W
+      "shift-e": "project_panel::ExpandAllEntries", // nvim-tree E
+
+      // ⚠️ nvim-tree 的 - = change_root_to_parent（把文件树根切到上级目录）。
+      //    Zed 没有"改树根"这个能力；SelectParent 只是把选中项移到父节点，语义不同。
+      "-": "project_panel::SelectParent",
+      // 已评估但 Zed 无对应能力，故意不绑:
+      //   <C-t> 新标签打开 · R 刷新（靠 watcher 自动刷新）· g? 帮助
+      //   u/e 两种重命名 · ge 复制基础名 · q 关树 · O/P/J/K/>/</s/S/f/F/H/I/B/C/M/U/m/.
+      //   bd/bt/bmv（书签）· ]c/[c（git 导航）· ]e/[e（诊断导航）· <BS>/<C-e>/<C-k>/<C-]>/L
+    },
+  },
+]

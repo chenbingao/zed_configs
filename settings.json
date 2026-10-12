@@ -1,0 +1,81 @@
+// Zed settings
+//
+// For information on how to configure Zed, see the Zed
+// documentation: https://zed.dev/docs/configuring-zed
+//
+// To see all of Zed's default settings without changing your
+// custom settings, run `zed: open default settings` from the
+// command palette (cmd-shift-p / ctrl-shift-p)
+{
+  "base_keymap": "Zed",
+  "ui_font_size": 16,
+  "buffer_font_size": 15,
+  "theme": {
+    "mode": "system",
+    "light": "Gruvbox Light",
+    "dark": "Gruvbox Dark",
+  },
+
+  // ============================================================
+  // Vim 模式 —— 对齐 ~/.config/nvim/lua/options.lua
+  // 按键分组见 ~/.config/zed/keymap.json
+  // ============================================================
+  "vim_mode": true,
+  "vim": {
+    // nvim: clipboard = "unnamedplus"（options.lua:2）—— yank **和删除**都进系统剪贴板。
+    // Zed 默认本就是 "always"（最接近 unnamedplus），之前我改成 "on_yank" 是**偏离**：
+    // 那样只有 y 进剪贴板，d/c 不进，与 unnamedplus 不符。
+    "use_system_clipboard": "always",
+    // nvim: ignorecase = false + smartcase = true（options.lua:25-26）。
+    // 注意 nvim 的 smartcase **只在 ignorecase=true 时才有意义**；你设了
+    // ignorecase=false，所以 nvim 实际是**恒大小写敏感**。Zed 默认 false，保持即可，
+    // 之前我打开 smartcase 反而比 nvim 更宽松。
+    "use_smartcase_find": false,
+    // nvim: number + relativenumber 并存 -> normal 相对行号 / insert 绝对行号
+    "toggle_relative_line_numbers": true,
+    "default_mode": "normal",
+  },
+
+  // nvim: relativenumber + number
+  "relative_line_numbers": "enabled",
+  // nvim: ignorecase = false -> 搜索恒大小写敏感（同 nvim 行为）
+  "use_smartcase_search": false,
+  // nvim: tabstop/softtabstop/shiftwidth = 2 + expandtab（options.lua:7-10）
+  // Zed 默认是 4，不设会与 nvim 不一致
+  "tab_size": 2,
+  // nvim: vim.lsp.inlay_hint.enable(true)（options.lua:28）；Zed 默认 false
+  "inlay_hints": {
+    "enabled": true,
+  },
+  // 手感项：去掉诱使你摸鼠标的视觉元素
+  "scrollbar": { "show": "never" },
+  "vertical_scroll_margin": 0,
+  "scroll_beyond_last_line": "off",
+
+  // leader 提示：按住 space 弹出可用键位（相当于 which-key）
+  "which_key": {
+    "enabled": true,
+    "delay_ms": 300,
+  },
+
+  // ============================================================
+  // rust-analyzer —— 显式指定本机二进制，绕开 GitHub API 限流
+  //
+  // 之前报 "status error 403 ... API rate limit exceeded"：Zed 在 PATH 里
+  // 找不到可用的 rust-analyzer 时，会调用 api.github.com 查 release 来下载，
+  // 未认证的限额只有 60 次/小时/IP（你前面还有代理，出口 IP 是共享的）。
+  //
+  // 为什么用绝对路径而不是让 Zed 自己找 ~/.cargo/bin/rust-analyzer：
+  // Zed 从 Finder/Dock 启动时不继承你 shell 的 PATH，~/.cargo/bin 很可能不在
+  // 里面，那它仍会退回下载。lsp_store.rs 里 get_language_server_binary 的第一步
+  // 就是取这里的 binary.path，命中后完全不进下载逻辑。
+  // 指向 toolchain 里的真实二进制，不经过 rustup shim。
+  // ============================================================
+  "lsp": {
+    "rust-analyzer": {
+      "binary": {
+        "path": "~/.rustup/toolchains/stable-aarch64-apple-darwin/bin/rust-analyzer",
+      },
+    },
+  },
+}

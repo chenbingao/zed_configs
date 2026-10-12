@@ -1,0 +1,41 @@
+// Zed tasks —— 供 keymap.json 里的 , tr（editor::SpawnNearestTask）使用
+//
+// 调用入口现状（与 keymap.json 对应）:
+//   , tr / space t r  -> editor::SpawnNearestTask  -> 需要 "tags" 匹配当前上下文
+//   space g g         -> 已删除（当前 nvim 基线里没有 <leader>gg）
+//   所以 lazygit 这个 task 目前**没有键位入口**，只能通过命令面板
+//   "task: spawn" 调起。保留它是因为命令面板仍可用；要删就删本块。
+//
+// 路径写法说明（不要再写成"一律用绝对路径"）:
+//   . lazygit 用绝对路径 —— 它是 homebrew 装的二进制，Zed 从 GUI 启动时
+//     PATH 里未必有 /opt/homebrew/bin。
+//   . cargo 用裸名 —— ~/.zshenv 已经把 ~/.cargo/bin 加进 PATH（你本机确认过），
+//     且用裸名能让 rustup 按项目里的 rust-toolchain.toml 选工具链。
+[
+  {
+    "label": "lazygit",
+    "command": "/opt/homebrew/bin/lazygit",
+    "use_new_terminal": false,
+    "allow_concurrent_runs": false,
+    "reveal": "always",
+    "reveal_target": "center",
+  },
+  {
+    // 供 editor::SpawnNearestTask 使用：光标停在 #[test] / #[tokio::test] 上时触发
+    // $ZED_RUNNABLE_SYMBOL 是 runnables.scm 的 @run capture，比 $ZED_SYMBOL 更准
+    "label": "cargo test (nearest)",
+    "command": "cargo",
+    "args": ["test", "$ZED_RUNNABLE_SYMBOL", "--", "--nocapture"],
+    "tags": ["rust-test"],
+    "reveal": "always",
+    "reveal_target": "dock",
+    "hide": "on_success",
+  },
+  {
+    "label": "cargo test (current file)",
+    "command": "cargo",
+    "args": ["test", "--test", "$ZED_STEM"],
+    "reveal": "always",
+    "reveal_target": "dock",
+  },
+]

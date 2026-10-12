@@ -1,0 +1,25 @@
+# ---- Zed 运行时状态 ----
+# Zed 的提示词库（LMDB），运行时会持续改写，不入库
+prompts/
+
+# ---- 备份 ----
+# 手工备份的配置快照（命名形如 .backup-20261012-141124/）
+.backup-*/
+
+# ---- macOS ----
+.DS_Store
+._*
+.Spotlight-V100
+.Trashes
+
+# ---- 编辑器临时文件 ----
+*.swp
+*.swo
+*~
+*.bak
+*.tmp
+
+# ---- 凭据 / 本地覆盖 ----
+# 若以后需要放 token、私有 API key 之类的本地设置，用这两个文件名，不要提交
+.env
+settings.local.json
